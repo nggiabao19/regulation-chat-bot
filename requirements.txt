@@ -1,0 +1,26 @@
+python-dotenv
+langchain
+
+# Gói tích hợp chính thức của Google cho Gemini
+langchain-google-genai 
+langchain-community 
+
+unstructured
+onnxruntime==1.17.1
+chromadb
+
+# Thư viện Python SDK chính thức của Google cho Gemini 
+google-genai 
+
+tiktoken 
+
+pytesseract # Để giao tiếp với Tesseract từ Python.
+pdf2image   # Để chuyển đổi PDF sang hình ảnh.
+poppler-utils # Để pdf2image hoạt động
+# Cài đặt Tesseract OCR engine
+# sudo apt install tesseract-ocr
+
+# Cài đặt gói ngôn ngữ tiếng Việt cho Tesseract
+# sudo apt install tesseract-ocr-vie
+# install markdown dependencies with: `pip install "unstructured[md]"` after
+# install the requirements file. Leave this line commented out. 

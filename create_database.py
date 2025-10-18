@@ -14,7 +14,7 @@ from PIL import Image
 load_dotenv()
 
 CHROMA_PATH = "chroma"
-DATA_PATH = "data/books/quy-che-hoc-vu-ctu.pdf"
+DATA_PATH = "data/quy-che-hoc-vu-ctu.pdf"
 
 def main():
     generate_data_store()

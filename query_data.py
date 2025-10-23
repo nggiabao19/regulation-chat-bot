@@ -1,79 +1,107 @@
-# query_data.py (cải tiến: ưu tiên snippet chính xác + ép trả tiếng Việt)
+"""
+CTU-Chatbot: A QA system for CTU academic regulations using RAG pattern.
+"""
+
+import os
+import re
+from typing import List, Tuple, Optional
+
+from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_ollama import OllamaLLM
-from dotenv import load_dotenv
-import os
+
+# Suppress unnecessary warnings and logging
 import warnings
 import logging
-import sys
-import re
-
 warnings.filterwarnings("ignore")
 logging.getLogger("langchain").setLevel(logging.ERROR)
-os.environ["GRPC_VERBOSITY"] = "NONE"
-os.environ["GRPC_CPP_VERBOSITY"] = "NONE"
+os.environ["GRPC_VERBOSITY"] = os.environ["GRPC_CPP_VERBOSITY"] = "NONE"
 
+# Load environment variables
 load_dotenv()
 
+# Constants
 CHROMA_PATH = "chroma"
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+MAX_CONTEXT_LENGTH = 3000
 
 PROMPT_TEMPLATE = """
 Bạn là trợ lý ảo CTU-Chatbot, được cung cấp một đoạn trích từ Quy chế học vụ.
 Hãy:
-Đọc kỹ nội dung trong NGỮ CẢNH.
-SUY LUẬN để trả lời câu hỏi của sinh viên thật chính xác.
-Trả lời NGẮN GỌN, BẰNG TIẾNG VIỆT, không chế thêm thông tin ngoài quy chế.
-Nếu không thấy thông tin trong ngữ cảnh, hãy nói bạn không biết theo phong cách hài hước"
-
----
+1. Đọc kỹ nội dung trong NGỮ CẢNH
+2. SUY LUẬN để trả lời câu hỏi của sinh viên thật chính xác
+3. Trả lời NGẮN GỌN, BẰNG TIẾNG VIỆT, không chế thêm thông tin ngoài quy chế
+4. Nếu không thấy thông tin trong ngữ cảnh, hãy nói bạn không biết theo phong cách hài hước
 
 NGỮ CẢNH:
 {context}
 
----
-
 CÂU HỎI: {question}
-
----
 
 SUY LUẬN & TRẢ LỜI:
 """
 
-
-# giới hạn context (kí tự)
-def shorten_context(context: str, max_chars: int = 3000) -> str:
-    return context[:max_chars]
-
-# tìm snippet chính xác (rất cơ bản): tách câu và kiểm tra từ khoá xuất hiện đủ
-def find_exact_snippet(results, question, min_hits=1):
+def shorten_context(text: str, max_length: int = MAX_CONTEXT_LENGTH) -> str:
     """
-    results: list of (doc, score)
-    question: string
-    Trả về (snippet, source, page, score) nếu tìm thấy, else None
+    Truncate text to max_length while preserving complete sentences.
+    
+    Args:
+        text: Text to truncate
+        max_length: Maximum allowed length
+        
+    Returns:
+        Truncated text ending at a sentence boundary
     """
-    # lấy từ khóa: loại bỏ stopwords đơn giản và ký tự đặc biệt
-    q = question.lower()
-    # split on non-word, keep words length>=2
-    words = [w for w in re.findall(r"\w+", q) if len(w) >= 2]
+    if len(text) <= max_length:
+        return text
+        
+    # Find last sentence boundary before max_length
+    truncated = text[:max_length]
+    last_boundary = max(
+        truncated.rfind("."),
+        truncated.rfind("!"),
+        truncated.rfind("?"),
+        truncated.rfind("\n")
+    )
+    return text[:last_boundary + 1] if last_boundary > 0 else truncated
+
+def find_relevant_snippet(results: List[Tuple], question: str, min_length: int = 40) -> Optional[Tuple]:
+    """
+    Find most relevant snippet from search results that matches the question.
+    
+    Args:
+        results: List of (document, score) tuples from vector search
+        question: User query string
+        min_length: Minimum snippet length to consider
+        
+    Returns:
+        Tuple of (snippet, source, page, score) if found, None otherwise
+    """
+    # Extract keywords from question
+    words = [w for w in re.findall(r"\w+", question.lower()) if len(w) >= 2]
     if not words:
         return None
 
-    # ưu tiên doc có score cao
+    # Check each result document
     for doc, score in results:
-        text = doc.page_content
-        # chia câu (đơn giản)
-        sentences = re.split(r'(?<=[.!?。\n])\s+', text)
+        sentences = re.split(r'(?<=[.!?。\n])\s+', doc.page_content)
         for sent in sentences:
-            sent_lower = sent.lower()
-            hits = sum(1 for w in words if w in sent_lower)
-            # nếu câu chứa nhiều từ khoá (tùy bạn điều chỉnh ngưỡng)
+            sent_clean = sent.strip()
+            if len(sent_clean) < min_length:
+                continue
+                
+            hits = sum(1 for w in words if w in sent_clean.lower())
             if hits >= max(1, len(words)//2):
-                snippet = sent.strip()
                 source = doc.metadata.get("source", "N/A")
-                page = doc.metadata.get("page", "N/A")
-                return snippet, source, page, score
+                source = "Quy chế học vụ" if "quy-che-hoc-vu" in str(source).lower() \
+                    else os.path.basename(str(source))
+                return (
+                    sent_clean,
+                    source, 
+                    doc.metadata.get("page", "N/A"),
+                    score
+                )
     return None
 
 def main():
@@ -93,76 +121,69 @@ def main():
     db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embedding_function)
 
     # lấy top-k (tăng k giúp tìm snippet tốt hơn)
-    results = db.similarity_search_with_relevance_scores(query_text, k=8)
+    results = db.similarity_search_with_relevance_scores(query_text, k=5)
 
-    # nếu không có kết quả tốt
     if not results:
         print("CTU-Chatbot: Mình chưa rõ thông tin này trong quy chế học vụ.")
         return
 
-    # cố tìm snippet chính xác trong các chunk
-    exact = find_exact_snippet(results, query_text)
-    if exact:
-        snippet, source, page, score = exact
-        # map source name
-        if "quy-che-hoc-vu" in str(source).lower():
-            source_name = "Quy chế học vụ"
-        else:
-            source_name = os.path.basename(str(source))
-        print("\n--- KẾT QUẢ DÒ TĨNH (snippet match) ---")
+    # Try to find most relevant snippet
+    relevant = find_relevant_snippet(results, query_text, min_length=40)
+    
+    if relevant:
+        snippet, source, page, score = relevant
+        print("\n--- KẾT QUẢ TRÍCH DẪN ---")
         print(f"Trích dẫn (nguyên văn):\n\"{snippet}\"")
-        print(f"Nguồn: {source_name}, Trang {page} (Độ liên quan: {score:.3f})")
-        # tóm tắt ngắn gọn: (nên trả bằng tiếng Việt -> cố gắng rút gọn)
-        # đơn giản: trả câu hỏi nếu snippet có chứa đáp án
-        print("\nCTU-Chatbot: ", end="")
-        # nếu snippet có số kỳ/tuần/năm, in luôn
-        m = re.search(r'\b(\d+)\b', snippet)
-        if m:
-            print(f"{m.group(1)} (theo Quy chế học vụ).")
-        else:
-            # fallback: in snippet + một câu tóm tắt
-            print(f"{snippet}")
+        print(f"Nguồn: {source}, Trang {page} (Độ liên quan: {score:.3f})")
+
+        # Process snippet with LLM
+        prompt = f"""
+        Bạn là trợ lý ảo CTU-Chatbot.
+        Dưới đây là đoạn trích từ Quy chế học vụ:
+        "{snippet}"
+
+        Hãy trả lời câu hỏi sau của sinh viên dựa trên đoạn trích:
+        "{query_text}"
+
+        Yêu cầu:
+        - Trả lời ngắn gọn, bằng tiếng Việt
+        - Chỉ dùng thông tin trong đoạn trích
+        - Nếu không đủ thông tin, hãy nói "Đoạn trích không có thông tin cụ thể về vấn đề này"
+        """
+        
+        try:
+            model = OllamaLLM(model="llama3", temperature=0.0, max_new_tokens=128)
+            response_text = model.invoke(prompt).strip()
+            print("\nCTU-Chatbot:", response_text)
+        except Exception as e:
+            print(f"\nLỗi khi gọi LLM: {e}")
+            print("Đoạn trích nguyên văn:", snippet)
+        
         return
 
-    # không tìm snippet -> dùng LLM local như fallback
-    context_text = "\n\n---\n\n".join([doc.page_content for doc, _ in results])
+
+    # Use LLM as fallback when no specific snippet is found
+    print("\n--- KẾT QUẢ TỔNG HỢP ---")
+    context_text = "\n\n---\n\n".join(
+        doc.page_content for doc, _ in results
+    )
     context_text = shorten_context(context_text)
     prompt = PROMPT_TEMPLATE.format(context=context_text, question=query_text)
 
     try:
-        # Khởi tạo Ollama LLM (hoặc model local khác bạn đã cài)
-        # Đặt temperature=0 để giảm sáng tạo
         model = OllamaLLM(model="llama3", temperature=0.0, max_new_tokens=256)
-        # gọi model: tùy phiên bản langchain-ollama, có thể là model.generate(...)
-        # chúng ta thử dùng .generate để lấy text an toàn
-        gen = model.generate([prompt])
-        # Lấy text
-        # cấu trúc trả về có thể khác nhau; ta cố gắng trích text ra theo chuẩn chung
-        response_text = ""
-        try:
-            response_text = gen.generations[0][0].text.strip()
-        except Exception:
-            # fallback: nếu .generate không có field như trên, thử gọi như hàm
-            try:
-                response_text = model(prompt).strip()
-            except Exception:
-                response_text = "[Lỗi khi lấy phản hồi từ LLM]"
+        print(f"\nCTU-Chatbot: {model.invoke(prompt).strip()}\n")
 
-        # in kết quả
-        print(f"\nCTU-Chatbot: {response_text}\n")
-
-        print("--- Nguồn thông tin (top chunks) ---")
+        print("--- Nguồn tham khảo ---")
         for doc, score in results[:3]:
             source = doc.metadata.get('source', '')
-            if "quy-che-hoc-vu" in source.lower():
-                source_name = "Quy chế học vụ"
-            else:
-                source_name = os.path.basename(source)
+            source = "Quy chế học vụ" if "quy-che-hoc-vu" in str(source).lower() \
+                else os.path.basename(str(source))
             page = doc.metadata.get('page', 'N/A')
-            print(f"- {source_name}, Trang {page} (Độ liên quan: {score:.3f})")
+            print(f"- {source}, Trang {page} (Độ liên quan: {score:.3f})")
 
     except Exception as e:
-        print(f"\nĐã xảy ra lỗi khi gọi LLM: {e}")
+        print(f"\nLỗi khi xử lý: {e}")
 
 if __name__ == "__main__":
     main()

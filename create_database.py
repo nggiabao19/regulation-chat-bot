@@ -1,129 +1,160 @@
-# create_database_local.py
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+"""
+Database creation script for RAG-based CTU Academic Regulations chatbot.
+Creates a vector database from PDF document using OCR and text cleaning.
+"""
+
+import os
+import sys
+import shutil
+import logging
+from typing import List
+
 from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_ollama import OllamaLLM
 from pdf2image import convert_from_path
 import pytesseract
-import os
-import shutil
-import sys
-import warnings
-import logging
 
-# --- Cấu hình & Hằng số ---
-warnings.filterwarnings("ignore")
+# Suppress unnecessary warnings and logging
 logging.getLogger("langchain").setLevel(logging.ERROR)
 
+# Constants
 CHROMA_PATH = "chroma"
 DATA_PATH = "data/quy-che-hoc-vu-ctu.pdf"
 
-# Embedding local
+# Embedding configuration
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-EMBEDDING_DEVICE = "cpu"  # hoặc "cuda"
+EMBEDDING_DEVICE = "cpu"
 
-# Chia đoạn văn
+# Text splitting parameters
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 100
 MIN_CHUNK_LENGTH = 50
 BATCH_SIZE = 200
 
-# Mô hình local để làm sạch OCR (qua Ollama)
+# LLM configuration (for OCR text cleaning)
 LLM_MODEL = "llama3"
-# --- Kết thúc cấu hình ---
 
 
-def main():
-    print("\n=== BẮT ĐẦU TẠO DATABASE CHO RAG ===\n")
+def main() -> None:
+    """
+    Main execution flow for database creation.
+    Performs OCR, text cleaning, chunking, and vector database creation.
+    """
+    print("\n=== Creating RAG Database ===\n")
 
-    # 1️⃣ OCR PDF scan → text
     documents = load_documents_from_scanned_pdf()
-
-    # 2️⃣ Làm sạch text bằng LLaMA3 local
     documents = clean_text_with_llm(documents)
-
-    # 3️⃣ Chia nhỏ văn bản
     chunks = split_text(documents)
-
-    # 4️⃣ Lưu vào Chroma
     save_to_chroma(chunks)
 
-    print("\n=== HOÀN TẤT TẠO DATABASE ===\n")
+    print("\n=== Database Creation Complete ===\n")
 
 
-def load_documents_from_scanned_pdf() -> list[Document]:
-    """OCR PDF scan thành text."""
-    print(f"→ Đang tải file PDF: {DATA_PATH}")
+def load_documents_from_scanned_pdf() -> List[Document]:
+    """
+    Extract text from scanned PDF using OCR.
+    
+    Returns:
+        List[Document]: List of documents with extracted text and metadata
+        
+    Raises:
+        SystemExit: If PDF cannot be found or processed
+    """
+    print(f"Loading PDF: {DATA_PATH}")
     if not os.path.exists(DATA_PATH):
-        print(f"[LỖI] Không tìm thấy file tại: {DATA_PATH}")
+        print(f"Error: File not found at {DATA_PATH}")
         sys.exit(1)
 
     try:
         images = convert_from_path(DATA_PATH)
     except Exception as e:
-        print(f"[LỖI] Lỗi khi chuyển PDF sang ảnh: {e}")
-        print("💡 Cài poppler-utils: sudo apt install poppler-utils")
+        print(f"Error converting PDF to images: {e}")
+        print("Hint: Install poppler-utils with 'sudo apt install poppler-utils'")
         sys.exit(1)
 
     documents = []
-    print(f"→ Đang OCR {len(images)} trang PDF...")
+    print(f"Processing OCR for {len(images)} pages...")
 
     for i, image in enumerate(images):
         page_num = i + 1
         try:
             text = pytesseract.image_to_string(image, lang="vie").strip()
             if len(text) < 10:
-                print(f"⚠️  Trang {page_num}: OCR rất ít ký tự.")
+                print(f"Warning: Page {page_num} has very little text.")
+                continue
+                
             metadata = {"source": DATA_PATH, "page": page_num}
             documents.append(Document(page_content=text, metadata=metadata))
         except Exception as e:
-            print(f"[LỖI] OCR lỗi ở trang {page_num}: {e}")
+            print(f"OCR failed for page {page_num}: {e}")
 
     if not documents:
-        print("[LỖI] Không đọc được trang nào.")
+        print("Error: No pages could be processed")
         sys.exit(1)
 
-    print(f"✅ OCR hoàn tất: {len(documents)} trang đã xử lý.\n")
+    print(f"OCR complete: {len(documents)} pages processed\n")
     return documents
 
 
-def clean_text_with_llm(documents: list[Document]) -> list[Document]:
+def clean_text_with_llm(documents: List[Document]) -> List[Document]:
     """
-    Dùng mô hình local LLaMA3 để hiệu chỉnh text OCR.
+    Clean OCR text using local LLM model.
+    
+    Args:
+        documents: List of documents containing OCR text
+        
+    Returns:
+        List[Document]: Documents with cleaned text
     """
-    print("→ Đang hiệu chỉnh văn bản OCR bằng mô hình local (LLaMA3)...")
+    print("Cleaning OCR text with LLM...")
 
     try:
         llm = OllamaLLM(model=LLM_MODEL)
     except Exception as e:
-        print(f"[LỖI] Không kết nối được Ollama hoặc model {LLM_MODEL}: {e}")
+        print(f"Error connecting to Ollama or loading {LLM_MODEL}: {e}")
         return documents
 
     cleaned_docs = []
-    for i, doc in enumerate(documents):
+    for doc in documents:
         prompt = f"""
-        Hãy chỉnh sửa văn bản tiếng Việt sau cho rõ ràng, đúng chính tả,
-        giữ nguyên nội dung gốc (không thêm thông tin mới):
+        Please clean up this Vietnamese text while preserving the original meaning:
         ---
         {doc.page_content}
         ---
+        Rules:
+        - Fix spelling and formatting
+        - Maintain original content
+        - No new information
         """
         try:
             response = llm.invoke(prompt).strip()
             cleaned_docs.append(Document(page_content=response, metadata=doc.metadata))
-            print(f"✅ Trang {doc.metadata['page']} đã làm sạch.")
+            print(f"Cleaned page {doc.metadata['page']}")
         except Exception as e:
-            print(f"⚠️  Lỗi khi làm sạch trang {doc.metadata['page']}: {e}")
+            print(f"Error cleaning page {doc.metadata['page']}: {e}")
             cleaned_docs.append(doc)
 
-    print(f"✅ Hoàn tất làm sạch {len(cleaned_docs)} trang.\n")
+    print(f"Text cleaning complete: {len(cleaned_docs)} pages processed\n")
     return cleaned_docs
 
 
-def split_text(documents: list[Document]) -> list[Document]:
-    """Chia văn bản thành các chunk nhỏ."""
-    print("→ Đang chia văn bản thành các đoạn nhỏ...")
+def split_text(documents: List[Document]) -> List[Document]:
+    """
+    Split documents into smaller chunks for vector storage.
+    
+    Args:
+        documents: List of documents to split
+        
+    Returns:
+        List[Document]: List of text chunks with metadata preserved
+        
+    Raises:
+        SystemExit: If no valid chunks are generated
+    """
+    print("Splitting text into chunks...")
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
@@ -133,29 +164,38 @@ def split_text(documents: list[Document]) -> list[Document]:
     )
 
     chunks = splitter.split_documents(documents)
-    print(f"→ Tổng số chunk trước khi lọc: {len(chunks)}")
+    print(f"Initial chunks: {len(chunks)}")
 
     valid_chunks = [
-        c for c in chunks if c.page_content.strip() and len(c.page_content) > MIN_CHUNK_LENGTH
+        c for c in chunks 
+        if c.page_content.strip() and len(c.page_content) > MIN_CHUNK_LENGTH
     ]
-    print(f"✅ Sau khi lọc: {len(valid_chunks)} chunks hợp lệ.\n")
+    print(f"Valid chunks: {len(valid_chunks)}\n")
 
     if not valid_chunks:
-        print("[LỖI] Không có chunk hợp lệ.")
+        print("Error: No valid chunks generated")
         sys.exit(1)
 
     return valid_chunks
 
 
-def save_to_chroma(chunks: list[Document]):
-    """Tạo vector database bằng Chroma."""
-    print("→ Chuẩn bị lưu vào Chroma DB...")
+def save_to_chroma(chunks: List[Document]) -> None:
+    """
+    Save text chunks to Chroma vector database.
+    
+    Args:
+        chunks: List of document chunks to store
+        
+    Raises:
+        SystemExit: If embedding model cannot be loaded
+    """
+    print("Preparing Chroma database...")
 
     if os.path.exists(CHROMA_PATH):
-        print(f"🗑️  Xóa database cũ: {CHROMA_PATH}")
+        print(f"Removing existing database: {CHROMA_PATH}")
         shutil.rmtree(CHROMA_PATH)
 
-    print(f"→ Tải model embedding: {EMBEDDING_MODEL}")
+    print(f"Loading embedding model: {EMBEDDING_MODEL}")
     try:
         embedding_fn = HuggingFaceEmbeddings(
             model_name=EMBEDDING_MODEL,
@@ -163,7 +203,7 @@ def save_to_chroma(chunks: list[Document]):
             encode_kwargs={"normalize_embeddings": True},
         )
     except Exception as e:
-        print(f"[LỖI] Không thể tải model embedding: {e}")
+        print(f"Error loading embedding model: {e}")
         sys.exit(1)
 
     db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embedding_fn)
@@ -172,15 +212,17 @@ def save_to_chroma(chunks: list[Document]):
 
     for i in range(0, total_chunks, BATCH_SIZE):
         batch = chunks[i : i + BATCH_SIZE]
-        print(f"→ Thêm lô {i//BATCH_SIZE + 1}/{total_batches}...")
+        batch_num = i // BATCH_SIZE + 1
+        print(f"Processing batch {batch_num}/{total_batches}...")
+        
         try:
             db.add_documents(batch)
         except Exception as e:
-            print(f"[LỖI] Khi thêm batch: {e}")
+            print(f"Error adding batch {batch_num}: {e}")
             continue
 
     db.persist()
-    print(f"✅ Đã lưu {len(chunks)} chunks vào {CHROMA_PATH}.\n")
+    print(f"Database created: {len(chunks)} chunks saved to {CHROMA_PATH}\n")
 
 
 if __name__ == "__main__":

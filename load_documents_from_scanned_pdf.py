@@ -7,15 +7,6 @@ from pdf2image import convert_from_path
 import pytesseract
 
 def load_documents_from_scanned_pdf(DATA_PATH) -> List[Document]:
-    """
-    Extract text from scanned PDF using OCR.
-    
-    Returns:
-        List[Document]: List of documents with extracted text and metadata
-        
-    Raises:
-        SystemExit: If PDF cannot be found or processed
-    """
     print(f"Loading PDF: {DATA_PATH}")
     if not os.path.exists(DATA_PATH):
         print(f"Error: File not found at {DATA_PATH}")

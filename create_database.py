@@ -15,7 +15,9 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_ollama import OllamaLLM
 from pdf2image import convert_from_path
+from get_embedding_function import get_embedding_function
 import pytesseract
+
 
 # Suppress unnecessary warnings and logging
 logging.getLogger("langchain").setLevel(logging.ERROR)
@@ -24,9 +26,6 @@ logging.getLogger("langchain").setLevel(logging.ERROR)
 CHROMA_PATH = "chroma"
 DATA_PATH = "data/quy-che-hoc-vu-ctu.pdf"
 
-# Embedding configuration
-EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
-EMBEDDING_DEVICE = "cpu"
 
 # Text splitting parameters
 CHUNK_SIZE = 1000
@@ -180,33 +179,12 @@ def split_text(documents: List[Document]) -> List[Document]:
 
 
 def save_to_chroma(chunks: List[Document]) -> None:
-    """
-    Save text chunks to Chroma vector database.
-    
-    Args:
-        chunks: List of document chunks to store
-        
-    Raises:
-        SystemExit: If embedding model cannot be loaded
-    """
-    print("Preparing Chroma database...")
-
     if os.path.exists(CHROMA_PATH):
         print(f"Removing existing database: {CHROMA_PATH}")
         shutil.rmtree(CHROMA_PATH)
 
-    print(f"Loading embedding model: {EMBEDDING_MODEL}")
-    try:
-        embedding_fn = HuggingFaceEmbeddings(
-            model_name=EMBEDDING_MODEL,
-            model_kwargs={"device": EMBEDDING_DEVICE},
-            encode_kwargs={"normalize_embeddings": True},
-        )
-    except Exception as e:
-        print(f"Error loading embedding model: {e}")
-        sys.exit(1)
-
-    db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embedding_fn)
+    # Creating Chroma database in batches
+    db = Chroma(persist_directory=CHROMA_PATH, embedding_function=get_embedding_function())
     total_chunks = len(chunks)
     total_batches = (total_chunks - 1) // BATCH_SIZE + 1
 

@@ -1,7 +1,6 @@
 import os
 import sys
-from typing import List, Tuple, Optional
-import re
+from typing import List
 from langchain_core.documents import Document
 from pdf2image import convert_from_path
 import pytesseract

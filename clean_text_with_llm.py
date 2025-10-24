@@ -4,15 +4,7 @@ from typing import List
 LLM_MODEL = "llama3"
 
 def clean_text_with_llm(documents: List[Document]) -> List[Document]:
-    """
-    Clean OCR text using local LLM model.
-    
-    Args:
-        documents: List of documents containing OCR text
-        
-    Returns:
-        List[Document]: Documents with cleaned text
-    """
+    # Clean OCR text using local LLM model.
     print("Cleaning OCR text with LLM...")
 
     try:

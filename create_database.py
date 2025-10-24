@@ -18,12 +18,13 @@ from split_text import split_text
 # Constants
 CHROMA_PATH = "chroma"
 BATCH_SIZE = 200
-DATA_PATH="data/quy-che-hoc-vu-ctu.pdf"
+DATA_PATH = "data"  # Can be a folder or a single PDF file
 
 def main():
-    # Check if the database should be cleared (using the --clear flag).
+    # Check if the database should be cleared (using the --reset flag).
     parser = argparse.ArgumentParser()
     parser.add_argument("--reset", action="store_true", help="Reset the database.")
+    parser.add_argument("--data", type=str, default=DATA_PATH, help="Path to PDF file or folder containing PDFs")
     args = parser.parse_args()
     if args.reset:
         print("✨ Clearing Database")
@@ -31,7 +32,7 @@ def main():
     
     """Main execution flow for database creation."""
     print("\nCreating RAG Database...\n")
-    documents = load_documents_from_scanned_pdf(DATA_PATH)
+    documents = load_documents_from_scanned_pdf(args.data)
     documents = clean_text_with_llm(documents)
     chunks = split_text(documents)
     save_to_chroma(chunks)

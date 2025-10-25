@@ -3,8 +3,12 @@ CTU-Chatbot: A QA system for CTU academic regulations using RAG pattern.
 """
 
 import os
+import sys
 import re
 from typing import List, Tuple, Optional
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from dotenv import load_dotenv
 from langchain_community.vectorstores import Chroma

@@ -3,17 +3,21 @@ Database creation script for RAG-based CTU Regulations chatbot.
 Creates a vector database from PDF document using OCR and text cleaning.
 """
 import os
+import sys
 import shutil
 from typing import List
 import argparse
 
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
 
-from get_embedding_function import get_embedding_function
-from load_documents_from_scanned_pdf import load_documents_from_scanned_pdf
-from clean_text_with_llm import clean_text_with_llm
-from split_text import split_text
+from src.utils.get_embedding_function import get_embedding_function
+from src.database.load_documents_from_scanned_pdf import load_documents_from_scanned_pdf, process_single_pdf
+from src.database.clean_text_with_llm import clean_text_with_llm
+from src.database.split_text import split_text
 
 # Constants
 CHROMA_PATH = "chroma"
@@ -118,8 +122,6 @@ def load_documents_from_pdf_list(pdf_files: List[str]) -> List[Document]:
     Returns:
         List[Document]: All documents from the PDF files
     """
-    from load_documents_from_scanned_pdf import process_single_pdf
-    
     all_documents = []
     for pdf_file in pdf_files:
         documents = process_single_pdf(pdf_file)

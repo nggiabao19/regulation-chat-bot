@@ -1,8 +1,8 @@
-# CTU Regulation Chatbot 🤖
+# CTU Regulation Chatbot 
 
 Hệ thống chatbot RAG (Retrieval Augmented Generation) để trả lời câu hỏi về Quy chế học vụ CTU.
 
-## 📁 Cấu trúc Project
+## Cấu trúc Project
 
 ```
 RAG-regulation-chatbot/
@@ -32,7 +32,7 @@ RAG-regulation-chatbot/
 
 ```
 
-## 🚀 Cài đặt
+## Cài đặt
 
 ### 1. Clone repository
 ```bash
@@ -65,7 +65,7 @@ ollama pull llama3
 sudo apt install poppler-utils tesseract-ocr tesseract-ocr-vie
 ```
 
-## 📖 Sử dụng
+## Sử dụng
 
 ### Tạo/Cập nhật Database
 
@@ -100,7 +100,7 @@ Sau đó nhập câu hỏi của bạn. Ví dụ:
 Nhập câu hỏi của bạn: Điều kiện để được xét tốt nghiệp là gì?
 ```
 
-## 🔧 Cấu hình
+## Cấu hình
 
 Tạo file `.env` với nội dung:
 ```env
@@ -108,7 +108,7 @@ Tạo file `.env` với nội dung:
 CHROMA_PATH=chroma
 ```
 
-## 📝 Workflow
+## Workflow
 
 ### 1. Xử lý tài liệu mới
 ```
@@ -120,16 +120,16 @@ PDF files → OCR → Clean text → Split chunks → Embeddings → Vector DB
 User question → Embedding → Vector search → Retrieve context → LLM → Answer
 ```
 
-## 🎯 Tính năng
+## Tính năng
 
-✅ **Xử lý PDF scan**: OCR tự động với pytesseract  
-✅ **Làm sạch text**: Sử dụng LLM để cải thiện chất lượng OCR  
-✅ **Kiểm tra trùng lặp**: Tự động bỏ qua file đã có trong database  
-✅ **RAG pattern**: Trả lời dựa trên ngữ cảnh từ tài liệu  
-✅ **Local LLM**: Sử dụng Ollama, không cần API key  
-✅ **Embedding local**: Sử dụng HuggingFace embeddings  
+- **Xử lý PDF scan**: OCR tự động với pytesseract  
+- **Làm sạch text**: Sử dụng LLM để cải thiện chất lượng OCR  
+- **Kiểm tra trùng lặp**: Tự động bỏ qua file đã có trong database  
+- **RAG pattern**: Trả lời dựa trên ngữ cảnh từ tài liệu  
+- **Local LLM**: Sử dụng Ollama, không cần API key  
+- **Embedding local**: Sử dụng HuggingFace embeddings  
 
-## 🛠️ Công nghệ
+## Công nghệ sử dụng 
 
 - **LangChain**: Framework RAG
 - **Chroma**: Vector database
@@ -138,35 +138,35 @@ User question → Embedding → Vector search → Retrieve context → LLM → A
 - **Pytesseract**: OCR engine
 - **PDF2Image + Poppler**: PDF processing
 
-## 📊 Performance
+## Performance
 
 - Thời gian OCR: ~2-3s/trang
 - Thời gian clean LLM: ~5-10s/trang
 - Thời gian query: ~2-5s
 - Chỉ xử lý file mới → Tiết kiệm thời gian đáng kể
 
-## 🙏 Credits & Acknowledgments
+## Credits & Acknowledgments
 
 Project này được phát triển dựa trên kiến thức học được từ kênh YouTube [**@pixegami**](https://www.youtube.com/@pixegami).
 
 Cảm ơn Pixegami đã chia sẻ những tutorial chất lượng về RAG và LangChain!
 
 **Các cải tiến so với tutorial gốc:**
-- ✨ Hỗ trợ xử lý PDF scan với OCR
-- ✨ Làm sạch text bằng LLM
-- ✨ Xử lý nhiều PDF files trong folder
+- Hỗ trợ xử lý PDF scan với OCR
+- Làm sạch text bằng LLM
+- Xử lý nhiều PDF files trong folder
 
-## 🤝 Đóng góp
+## Đóng góp
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## 📄 License
+## License
 
 MIT License
 
-## 👥 Authors
+## Authors
 
-- Nguyễn Gia Bảo
+- Nguyễn Gia Bảo (nggiabao19@gmail.com)
 
 ## 🔗 Links
 

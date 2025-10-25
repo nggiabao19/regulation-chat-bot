@@ -56,12 +56,6 @@ def main():
 def get_pdf_files(data_path: str) -> List[str]:
     """
     Get list of PDF files from path.
-    
-    Args:
-        data_path: Path to PDF file or directory
-        
-    Returns:
-        List of absolute paths to PDF files
     """
     pdf_files = []
     
@@ -80,12 +74,6 @@ def get_pdf_files(data_path: str) -> List[str]:
 def filter_new_files(pdf_files: List[str]) -> List[str]:
     """
     Filter out PDF files that are already in the database.
-    
-    Args:
-        pdf_files: List of PDF file paths
-        
-    Returns:
-        List of PDF files not yet in database
     """
     if not os.path.exists(CHROMA_PATH):
         print("No existing database found. All files will be processed.\n")
